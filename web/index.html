@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeraBox Manager</title>
+    <style>
+        :root {
+            --primary: #4a9eff;
+            --bg: #1a1b2e;
+            --sidebar-bg: #232536;
+            --card-bg: #2a2d42;
+            --text: #e4e6f0;
+            --text-secondary: #9ca3bf;
+            --border: #363952;
+            --hover: #32354d;
+            --input-bg: #1e2035;
+            --success: #4ade80;
+            --danger: #f87171;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+        body { background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+
+        /* Sidebar */
+        .sidebar { width: 240px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px 0; }
+        .logo { padding: 0 20px 30px; font-size: 22px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+        .nav-item { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--text-secondary); transition: all 0.2s; font-size: 15px; }
+        .nav-item:hover, .nav-item.active { background: var(--hover); color: var(--primary); }
+        .nav-item svg { width: 20px; height: 20px; fill: currentColor; }
+        .user-status { margin-top: auto; padding: 20px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); }
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .status-dot.online { background: var(--success); }
+        .status-dot.offline { background: var(--danger); }
+
+        /* Main Content */
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .header { height: 60px; background: var(--sidebar-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 30px; justify-content: space-between; }
+        .breadcrumb { font-size: 16px; font-weight: 500; }
+        .actions button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); margin-left: 10px; }
+        .btn-outline:hover { background: var(--hover); }
+
+        .content { flex: 1; padding: 30px; overflow-y: auto; }
+
+        /* File Grid */
+        .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; }
+        .file-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .file-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .file-icon { font-size: 40px; margin-bottom: 10px; }
+        .file-name { font-size: 13px; word-break: break-all; line-height: 1.4; }
+        .file-meta { font-size: 11px; color: var(--text-secondary); margin-top: 5px; }
+
+        /* Upload Zone */
+        .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 60px; text-align: center; background: var(--card-bg); transition: 0.2s; }
+        .upload-zone.dragover { border-color: var(--primary); background: var(--hover); }
+        .upload-icon { font-size: 48px; margin-bottom: 15px; color: var(--primary); }
+
+        /* Progress Bar */
+        .progress-container { margin-top: 20px; display: none; }
+        .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+        .progress-text { font-size: 13px; margin-top: 8px; color: var(--text-secondary); }
+
+        /* Login Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
+        .modal { background: var(--card-bg); padding: 30px; border-radius: 12px; width: 420px; max-width: 90%; border: 1px solid var(--border); }
+        .modal h2 { margin-bottom: 10px; }
+        .modal p { font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 13px; margin-bottom: 5px; font-weight: 500; color: var(--text-secondary); }
+        .input-group input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--input-bg); color: var(--text); outline: none; }
+        .input-group input:focus { border-color: var(--primary); }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-actions button { flex: 1; padding: 10px; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 20px; right: 20px; background: var(--card-bg); border: 1px solid var(--border); color: var(--text); padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: 0.3s; pointer-events: none; z-index: 200; }
+        .toast.show { opacity: 1; transform: translateY(-10px); }
+
+        .hidden { display: none !important; }
+        .card-menu-btn { position: absolute; top: 6px; right: 6px; background: var(--hover); color: var(--text); border: 1px solid var(--border); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 15px; line-height: 1; z-index: 5; opacity: 0.7; }
+        .file-card:hover .card-menu-btn { opacity: 1; }
+        .card-menu { position: absolute; top: 36px; right: 6px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; z-index: 50; min-width: 150px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); overflow: hidden; }
+        .card-menu a { display: block; padding: 10px 14px; font-size: 13px; cursor: pointer; color: var(--text); text-decoration: none; }
+        .card-menu a:hover { background: var(--hover); }
+
+        /* Steps list */
+        .steps { margin: 15px 0 15px 20px; font-size: 14px; line-height: 2; color: var(--text); }
+        .steps li { margin-bottom: 4px; }
+        .code-block { background: #0d0e1a; color: #a5d6ff; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 12px; word-break: break-all; margin-bottom: 15px; position: relative; border: 1px solid var(--border); }
+        .copy-btn { position: absolute; top: 8px; right: 8px; background: var(--hover); color: var(--text); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .copy-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">☁️ TeraBox</div>
+        <div class="nav-item active" onclick="showPage('browse', this)">
+            <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+            My Files
+        </div>
+        <div class="nav-item" onclick="showPage('upload', this)">
+            <svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+            Upload
+        </div>
+        <div class="nav-item" onclick="showPage('watch', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+            Auto Sync
+        </div>
+        <div class="user-status">
+            <span id="statusDot" class="status-dot offline"></span>
+            <span id="statusText">Not Logged In</span>
+            <div id="accountRow" style="margin-top:6px; display:none;">
+                <span id="accountName" style="font-weight:600;"></span>
+                <a href="#" onclick="openAccounts(event)" style="color: var(--primary); text-decoration: none; margin-left:8px;">Switch</a>
+            </div>
+            <br>
+            <a href="#" onclick="toggleLogin()" style="color: var(--primary); text-decoration: none;" id="loginLink">Login Now</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+        <div class="header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button class="btn-outline" id="backBtn" onclick="goBack()" title="Go back">← Back</button>
+                <div class="breadcrumb" id="pageTitle">My Files</div>
+            </div>
+            <div class="actions" id="browseActions" style="display:none;">
+                <button class="btn-primary" onclick="uploadFilesHere()">⬆ Files</button>
+                <button class="btn-outline" onclick="uploadFolderHere()">📁 Folder</button>
+                <button class="btn-outline" onclick="createFolder()">＋ Folder</button>
+                <button class="btn-outline" onclick="refresh()">Refresh</button>
+            </div>
+            <div class="actions" id="otherActions" style="display:none;">
+                <button class="btn-primary" onclick="handleMainAction()" id="mainBtn">New Folder</button>
+                <button class="btn-outline" onclick="refresh()">Refresh</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Browse Page -->
+            <div id="page-browse" class="page">
+                <div class="file-grid" id="fileGrid"></div>
+            </div>
+
+            <!-- Upload Page -->
+            <div id="page-upload" class="page hidden">
+                <div class="upload-zone" id="dropZone">
+                    <div class="upload-icon">⬆️</div>
+                    <h3>Upload to <span id="uploadDest">/</span></h3>
+                    <p style="color: var(--text-secondary); margin: 10px 0;">Go to any folder in My Files to upload there, or upload here to root.</p>
+                    <button class="btn-primary" style="margin-top: 15px;" onclick="uploadFilesHere()">Select Files</button>
+                    <button class="btn-outline" style="margin-top: 15px; margin-left: 10px;" onclick="uploadFolderHere()">Select Folder</button>
+                </div>
+                <div class="progress-container" id="uploadProgress">
+                    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                    <div class="progress-text" id="progressText">Preparing...</div>
+                </div>
+            </div>
+
+            <!-- Watch Page -->
+            <div id="page-watch" class="page hidden">
+                <div style="background: var(--card-bg); padding: 30px; border-radius: 12px; border: 1px solid var(--border);">
+                    <h3>Add Folder to Auto-Sync</h3>
+                    <p style="color: var(--text-secondary); margin: 10px 0 20px;">Any new file added to this folder will automatically upload to TeraBox.</p>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="watchPath" placeholder="/home/user/Documents" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text);">
+                        <button class="btn-primary" onclick="addWatchFolder()">Start Watching</button>
+                    </div>
+                    <div id="watchList" style="margin-top: 30px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal (browser only) -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <h2>🔐 Login to TeraBox</h2>
+            <p>Sign in with your browser — Google sign-in works, no copy-paste needed.</p>
+            <div class="modal-actions" style="flex-direction: column; gap: 10px; margin-bottom: 10px;">
+                <button class="btn-primary" onclick="openBrowserLogin('default')" style="width: 100%; padding: 14px; font-size: 15px;">🌐 Open Firefox to Sign In</button>
+                <button class="btn-primary" onclick="openBrowserLogin('second')" style="width: 100%; padding: 14px; font-size: 15px; background: #7c3aed;">🕵️ Second Account (isolated window)</button>
+            </div>
+            <div id="accountList" style="margin-bottom: 10px;"></div>
+            <div class="modal-actions">
+                <button class="btn-outline" onclick="closeLogin()" style="width:100%;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Browser Login Helper Overlay (Auto-Capture) -->
+    <div class="modal-overlay" id="browserLoginOverlay" style="z-index: 150;">
+        <div class="modal" style="width: 480px;">
+            <h2>🌐 Auto-Login</h2>
+            <p>Firefox has opened on TeraBox. Sign in there — Google sign-in works, your saved accounts are there.</p>
+            <div style="text-align: center; padding: 20px 0;">
+                <div id="captureStatus" style="font-size: 15px; margin-bottom: 15px;">Waiting for login...</div>
+                <div class="progress-bar" style="width: 100%;"><div class="progress-fill" id="captureProgress" style="width: 0%; animation: pulse 1.5s infinite;"></div></div>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); text-align: center;">Once you've logged in, click the button below to grab your session automatically.</p>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn-outline" onclick="cancelBrowserLogin()">Cancel</button>
+                <button class="btn-primary" onclick="captureCookies()" id="captureBtn">✅ I'm Logged In - Capture Now</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">Notification</div>
+
+    <!-- Preview Modal (photo view / video player) -->
+    <div class="modal-overlay" id="previewModal" style="z-index: 160;">
+        <div class="modal" style="width: 720px; max-width: 94%;">
+            <h2 id="previewTitle" style="word-break: break-all;">Preview</h2>
+            <div id="previewBody" style="text-align:center; min-height:120px; display:flex; align-items:center; justify-content:center;">
+                <div id="previewStatus" style="color: var(--text-secondary);">Preparing…</div>
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn-outline" onclick="closePreview()">Close</button>
+                <button class="btn-outline" onclick="playExternal()" id="vlcBtn">▶ VLC</button>
+                <button class="btn-primary" onclick="downloadCurrent()" id="dlBtn">⬇ Download</button>
+            </div>
+            <div class="progress-container" id="dlProgress" style="display:none; margin-top:12px;">
+                <div class="progress-bar"><div class="progress-fill" id="dlFill"></div></div>
+                <div class="progress-text" id="dlText">Downloading…</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentPage = 'browse';
+        let isLoggedIn = false;
+        let currentPath = '/';
+
+        // Python API Bridge
+        // pywebview injects window.pywebview asynchronously; we must wait for
+        // the 'pywebviewready' event before deciding there's no backend.
+        // Opening this file directly in Chrome/Firefox will NEVER fire that
+        // event, so we detect plain-browser mode after a timeout.
+        let api = null;
+        let backendReady = false;
+        const noBackendErr = (fn) => ({ success: false,
+            error: `No app backend detected. Make sure you launched via run.sh (not by opening index.html directly). ${fn} requires the Python backend.` });
+
+        function initApi() {
+            if (window.pywebview && window.pywebview.api) {
+                api = window.pywebview.api;
+                backendReady = true;
+                console.log('[TeraBox] pywebview API connected');
+                checkAuth();
+            }
+        }
+
+        // Listen for pywebview's ready signal
+        window.addEventListener('pywebviewready', initApi);
+
+        // Fallback: if pywebview hasn't initialized within 2 seconds, assume plain browser
+        setTimeout(() => {
+            if (!backendReady) {
+                console.warn('[TeraBox] No pywebview detected after 2s — running in plain browser mode');
+                api = {
+                    check_login: async () => false,
+                    try_silent_login: async () => noBackendErr('silent login'),
+                    login: async () => noBackendErr('manual login'),
+                    logout: async () => {},
+                    open_browser_login: async () => noBackendErr('browser login'),
+                    capture_cookies: async () => noBackendErr('cookie capture'),
+                    import_firefox_cookies: async () => noBackendErr('Firefox import'),
+                    list_accounts: async () => [],
+                    switch_account: async () => noBackendErr('account switch'),
+                    remove_account: async () => noBackendErr('account remove'),
+                    list_files: async (p) => [],
+                    mkdir: async () => noBackendErr('mkdir'),
+                    delete_files: async () => noBackendErr('delete'),
+                    move_files: async () => noBackendErr('move'),
+                    rename_file: async () => noBackendErr('rename'),
+                    start_upload: async () => noBackendErr('upload'),
+                    upload_status: async () => noBackendErr('upload status'),
+                    select_upload_files: async () => noBackendErr('file picker'),
+                    select_upload_folder: async () => noBackendErr('folder picker'),
+                    preview_file: async () => noBackendErr('preview'),
+                    preview_status: async () => noBackendErr('preview status'),
+                    stream_url: async () => noBackendErr('stream'),
+                    play_external: async () => noBackendErr('external player'),
+                    download_file: async () => noBackendErr('download'),
+                    download_status: async () => noBackendErr('download status'),
+                    default_download_dir: async () => noBackendErr('download dir'),
+                    select_folder_dialog: async () => null,
+                    upload_file: async (f) => noBackendErr('upload'),
+                    add_watch: async (p) => noBackendErr('auto-sync'),
+                    get_watch_list: async () => []
+                };
+                showToast('⚠️ No backend detected. Run via ./run.sh — not by opening this file directly.');
+                checkAuth();
+            }
+        }, 2000);
+
+        // Navigation
+        function showPage(page, navEl) {
+            currentPage = page;
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`page-${page}`).classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if (navEl) navEl.classList.add('active');
+
+            const titles = { browse: 'My Files', upload: 'Upload Files', watch: 'Auto Sync' };
+            const btns = { browse: 'New Folder', upload: 'Select Files', watch: 'Add Folder' };
+            document.getElementById('pageTitle').textContent = titles[page];
+            document.getElementById('mainBtn').textContent = btns[page];
+            document.getElementById('browseActions').style.display = page === 'browse' ? '' : 'none';
+            document.getElementById('otherActions').style.display = page === 'browse' ? 'none' : '';
+            const ud = document.getElementById('uploadDest');
+            if (ud) ud.textContent = currentPath;
+            updateCrumb();
+
+            if (page === 'browse') loadFiles();
+            if (page === 'watch') loadWatchList();
+        }
+
+        function handleMainAction() {
+            if (currentPage === 'upload') selectFiles();
+            else if (currentPage === 'watch') addWatchFolder();
+            else showToast('Feature coming soon');
+        }
+
+        // Auth
+        let silentTried = false;
+        async function checkAuth() {
+            try {
+                const status = await api.check_login();
+                isLoggedIn = !!status;
+                // First launch + no saved session: quietly pull the Firefox
+                // session (Google sign-in included) so the user skips login.
+                if (!isLoggedIn && !silentTried && api.try_silent_login) {
+                    silentTried = true;
+                    try {
+                        const s = await api.try_silent_login();
+                        if (s && s.success) {
+                            isLoggedIn = true;
+                            showToast('✅ Signed in automatically from Firefox');
+                        }
+                    } catch(e) { console.error('silent login error:', e); }
+                }
+                updateStatusUI();
+                if (isLoggedIn && currentPage === 'browse') loadFiles();
+            } catch(e) { console.error('checkAuth error:', e); }
+        }
+
+        function toggleLogin() {
+            if (isLoggedIn) {
+                api.logout().then(() => {
+                    isLoggedIn = false;
+                    currentPath = '/';
+                    closeMenus();
+                    document.getElementById('previewModal').style.display = 'none';
+                    document.getElementById('fileGrid').innerHTML =
+                        '<div style="padding:40px;text-align:center;color:var(--text-secondary);">Logged out — log in to browse your files.</div>';
+                    updateStatusUI();
+                    updateCrumb();
+                    showToast('Logged out successfully');
+                });
+            } else {
+                document.getElementById('loginModal').style.display = 'flex';
+                loadAccounts();
+            }
+        }
+
+        function openAccounts(e) {
+            if (e) e.preventDefault();
+            document.getElementById('loginModal').style.display = 'flex';
+            loadAccounts();
+        }
+
+        async function loadAccounts() {
+            const box = document.getElementById('accountList');
+            if (!api || !api.list_accounts) return;
+            try {
+                const accs = await api.list_accounts();
+                if (!accs.length) { box.innerHTML = ''; return; }
+                box.innerHTML = '<div style="font-size:13px;color:var(--text-secondary);margin:8px 0 6px;">Saved accounts</div>' +
+                    accs.map(a => `<div style="padding:10px;background:var(--hover);border-radius:6px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);">
+                        <span>${a.active ? '●' : '○'} <b>${a.name}</b></span>
+                        <span>${a.active ? '<span style="color:var(--success);font-size:12px;">Active</span>'
+                            : `<button class="btn-primary" style="padding:4px 12px;font-size:12px;" onclick="switchAccount('${a.name}')">Use</button>
+                               <button class="btn-outline" style="padding:4px 12px;font-size:12px;margin-left:6px;" onclick="removeAccount('${a.name}')">✕</button>`}</span>
+                    </div>`).join('');
+            } catch(e) { console.error('loadAccounts:', e); }
+        }
+
+        async function switchAccount(name) {
+            try {
+                const res = await api.switch_account(name);
+                if (res && res.success) {
+                    isLoggedIn = true;
+                    currentPath = '/';
+                    closeLogin();
+                    updateStatusUI();
+                    loadFiles();
+                    showToast(`Switched to ${name}`);
+                } else {
+                    showToast('Switch failed: ' + (res?.error || 'unknown'));
+                }
+            } catch(e) { showToast('Switch failed: ' + e); }
+        }
+
+        async function removeAccount(name) {
+            try {
+                await api.remove_account(name);
+                loadAccounts();
+                const s = await api.check_login();
+                isLoggedIn = !!s;
+                updateStatusUI();
+                if (isLoggedIn) loadFiles();
+            } catch(e) { showToast('Remove failed: ' + e); }
+        }
+
+        function closeLogin() { document.getElementById('loginModal').style.display = 'none'; }
+
+        async function updateStatusUI() {
+            const dot = document.getElementById('statusDot');
+            const txt = document.getElementById('statusText');
+            const link = document.getElementById('loginLink');
+            const accRow = document.getElementById('accountRow');
+            if (isLoggedIn) {
+                dot.className = 'status-dot online';
+                txt.textContent = 'Connected';
+                link.textContent = 'Logout';
+                try {
+                    const accs = api && api.list_accounts ? await api.list_accounts() : [];
+                    const active = accs.find(a => a.active);
+                    if (active) {
+                        document.getElementById('accountName').textContent = '👤 ' + active.name;
+                        accRow.style.display = 'block';
+                    } else accRow.style.display = 'none';
+                } catch(e) { accRow.style.display = 'none'; }
+            } else {
+                dot.className = 'status-dot offline';
+                txt.textContent = 'Not Logged In';
+                link.textContent = 'Login Now';
+                accRow.style.display = 'none';
+            }
+        }
+
+        // File Browsing
+        const IMG_RE = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
+        const VID_RE = /\.(mp4|mkv|avi|mov|webm|flv)$/i;
+
+        function fullPath(name) {
+            return (currentPath.endsWith('/') ? currentPath : currentPath + '/') + name;
+        }
+
+        async function loadFiles() {
+            if (!isLoggedIn) return;
+            const grid = document.getElementById('fileGrid');
+            grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-secondary);">Loading...</div>';
+            updateCrumb();
+            try {
+                const files = await api.list_files(currentPath);
+                grid.innerHTML = '';
+                if (!files.length) {
+                    grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-secondary);">Empty folder</div>';
+                    return;
+                }
+                files.forEach(f => {
+                    const icon = f.type === 'dir' ? '📁' : getFileIcon(f.name);
+                    const card = document.createElement('div');
+                    card.className = 'file-card';
+                    const isVid = f.type === 'file' && VID_RE.test(f.name);
+                    const isImg = f.type === 'file' && IMG_RE.test(f.name);
+                    const hasThumb = f.type === 'file' && f.thumb;
+                    card.innerHTML = (hasThumb
+                        ? `<img class="thumb" src="${f.thumb}" style="width:100%;border-radius:6px;margin-bottom:8px;" loading="lazy" alt="">`
+                        : `<div class="file-icon">${isVid ? '▶️' : icon}</div>`) +
+                        `<div class="file-name">${f.name}</div><div class="file-meta">${f.size}</div>`;
+                    const p = fullPath(f.name);
+                    const menuItems = f.type === 'file'
+                        ? `<a data-act="preview">👁 Preview</a><a data-act="download">⬇ Download</a>`
+                        : ``;
+                    card.innerHTML = `<button class="card-menu-btn" title="Actions">⋮</button>`
+                        + `<div class="card-menu" style="display:none;">${menuItems}<a data-act="rename">✏ Rename</a><a data-act="move">📁 Move</a><a data-act="delete" style="color:var(--danger);">🗑 Delete</a></div>`
+                        + card.innerHTML;
+                    const mb = card.querySelector('.card-menu-btn');
+                    mb.onclick = (ev) => { ev.stopPropagation(); toggleMenu(card); };
+                    card.querySelector('.card-menu').onclick = (ev) => {
+                        ev.stopPropagation();
+                        const act = ev.target.closest('a')?.dataset.act;
+                        if (!act) return;
+                        closeMenus();
+                        if (act === 'preview') openPreview(p, f.name);
+                        else if (act === 'download') fileDownload(p);
+                        else if (act === 'rename') fileRename(p, f.name);
+                        else if (act === 'move') fileMove(p);
+                        else if (act === 'delete') fileDelete(p, f.name);
+                    };
+                    if (f.type === 'dir') card.onclick = () => navigateTo(f.name);
+                    else card.onclick = () => openPreview(fullPath(f.name), f.name);
+                    grid.appendChild(card);
+                });
+            } catch(e) { grid.innerHTML = `<div style="padding:40px;text-align:center;color:var(--danger);">Failed to load files: ${e && e.message ? e.message : e}</div>`; }
+        }
+
+
+        function navigateTo(name) {
+            currentPath += (currentPath.endsWith('/') ? '' : '/') + name;
+            loadFiles();
+        }
+
+        function toggleMenu(card) {
+            closeMenus();
+            const m = card.querySelector('.card-menu');
+            if (m) m.style.display = 'block';
+            setTimeout(() => document.addEventListener('click', closeMenus, { once: true }), 0);
+        }
+        function closeMenus() {
+            document.querySelectorAll('.card-menu').forEach(m => m.style.display = 'none');
+        }
+
+        async function fileDownload(path) {
+            try {
+                const dest = await api.default_download_dir().catch(() => 'Downloads');
+                const r = await api.download_file(path, dest);
+                if (!r || !r.success) return showToast('❌ ' + (r?.error || 'download failed'));
+                showToast('⬇ Downloading in background…');
+                const timer = setInterval(async () => {
+                    const st = await api.download_status(path, dest);
+                    if (st.state === 'ready') { clearInterval(timer); showToast('✅ Saved to ' + (st.dest || dest)); }
+                    else if (st.state === 'error') { clearInterval(timer); showToast('❌ ' + (st.error || 'failed')); }
+                }, 2000);
+            } catch(e) { showToast('Download failed: ' + e); }
+        }
+
+        async function fileRename(path, name) {
+            const nn = prompt('Rename to:', name);
+            if (!nn || nn === name) return;
+            try {
+                const r = await api.rename_file(path, nn);
+                if (r && r.success) { showToast('✅ Renamed'); loadFiles(); }
+                else showToast('❌ ' + (r?.error || 'rename failed'));
+            } catch(e) { showToast('Rename failed: ' + e); }
+        }
+
+        async function fileMove(path) {
+            const dest = prompt('Move to folder (remote path):', currentPath);
+            if (!dest) return;
+            try {
+                const r = await api.move_files([path], dest);
+                if (r && r.success) { showToast('✅ Moved'); loadFiles(); }
+                else showToast('❌ ' + (r?.error || 'move failed'));
+            } catch(e) { showToast('Move failed: ' + e); }
+        }
+
+        async function fileDelete(path, name) {
+            if (!confirm(`Delete "${name}" permanently?`)) return;
+            try {
+                const r = await api.delete_files([path]);
+                if (r && r.success) { showToast('🗑 Deleted'); loadFiles(); }
+                else showToast('❌ ' + (r?.error || 'delete failed'));
+            } catch(e) { showToast('Delete failed: ' + e); }
+        }
+
+        async function createFolder() {
+            const nn = prompt('New folder name:', 'New Folder');
+            if (!nn) return;
+            try {
+                const r = await api.mkdir((currentPath === '/' ? '' : currentPath) + '/' + nn);
+                if (r && r.success) { showToast('✅ Folder created'); loadFiles(); }
+                else showToast('❌ ' + (r?.error || 'mkdir failed'));
+            } catch(e) { showToast('mkdir failed: ' + e); }
+        }
+
+        async function uploadFilesHere() {
+            try {
+                const picks = await api.select_upload_files();
+                if (!picks || !picks.length || picks.success === false) {
+                    if (picks && picks.success === false) showToast('❌ ' + picks.error);
+                    return;
+                }
+                startUpload(picks, currentPath);
+            } catch(e) { showToast('Picker failed: ' + e); }
+        }
+
+        async function uploadFolderHere() {
+            try {
+                const picks = await api.select_upload_folder();
+                if (!picks || !picks.length || picks.success === false) {
+                    if (picks && picks.success === false) showToast('❌ ' + picks.error);
+                    return;
+                }
+                startUpload(picks, currentPath);
+            } catch(e) { showToast('Picker failed: ' + e); }
+        }
+
+        async function startUpload(paths, dest) {
+            try {
+                const r = await api.start_upload(paths, dest);
+                if (!r || !r.success) return showToast('❌ ' + (r?.error || 'upload failed'));
+                showToast(`⬆ Uploading ${r.total} file(s) to ${dest}…`);
+                const timer = setInterval(async () => {
+                    const st = await api.upload_status();
+                    if (!st.success) { clearInterval(timer); return; }
+                    if (st.state !== 'uploading') {
+                        clearInterval(timer);
+                        if (st.state === 'ready') showToast(`✅ Uploaded ${st.done} file(s)`);
+                        else showToast(`⚠ Done with errors: ${(st.errors || []).join('; ')}`);
+                        loadFiles();
+                    }
+                }, 3000);
+            } catch(e) { showToast('Upload failed: ' + e); }
+        }
+
+        function goBack() {
+            if (currentPath === '/' || !currentPath) return;
+            const parts = currentPath.split('/').filter(Boolean);
+            parts.pop();
+            currentPath = '/' + parts.join('/');
+            if (currentPath === '/') currentPath = '/';
+            loadFiles();
+        }
+
+        function updateCrumb() {
+            document.getElementById('pageTitle').textContent =
+                currentPage === 'browse' ? ('My Files' + (currentPath === '/' ? '' : ' — ' + currentPath)) :
+                currentPage === 'upload' ? 'Upload Files' : 'Auto Sync';
+            const back = document.getElementById('backBtn');
+            if (back) back.style.display = (currentPage === 'browse' && currentPath !== '/') ? '' : 'none';
+        }
+
+        function refresh() { loadFiles(); showToast('Refreshed'); }
+        function getFileIcon(name) {
+            if (name.match(/\.(mp4|mkv|avi|mov|webm|flv)$/i)) return '🎬';
+            if (name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) return '🖼️';
+            if (name.match(/\.(mp3|wav|flac|ogg)$/i)) return '🎵';
+            if (name.match(/\.(zip|rar|7z|tar|gz)$/i)) return '📦';
+            if (name.match(/\.(pdf|doc|docx|txt|xls|xlsx|ppt)$/i)) return '📄';
+            return '📄';
+        }
+
+        // Preview (photo view / video player)
+        let previewPath = null;
+        let previewTimer = null;
+
+        function openPreview(path, name) {
+            previewPath = path;
+            document.getElementById('previewTitle').textContent = name;
+            document.getElementById('dlProgress').style.display = 'none';
+            document.getElementById('previewModal').style.display = 'flex';
+            document.getElementById('vlcBtn').style.display = (VID_RE.test(path) ? '' : 'none');
+            const body = document.getElementById('previewBody');
+            if (VID_RE.test(path)) {
+                // Instant streaming — no full download, seeking works.
+                body.innerHTML = '<div id="previewStatus" style="color: var(--text-secondary);">⏳ Starting stream…</div>';
+                api.stream_url(path).then(r => {
+                    if (r && r.success) {
+                        body.innerHTML = `<video src="${r.url}" controls autoplay style="max-width:100%; max-height:60vh; border-radius:8px; background:#000;"></video>`;
+                    } else {
+                        body.innerHTML = `<div style="color:var(--danger);">❌ Stream failed: ${r?.error || 'unknown'}<br><span style="font-size:13px;">Try VLC or Download instead.</span></div>`;
+                    }
+                }).catch(e => {
+                    body.innerHTML = `<div style="color:var(--danger);">❌ ${e}</div>`;
+                });
+            } else if (IMG_RE.test(path)) {
+                body.innerHTML = '<div id="previewStatus" style="color: var(--text-secondary);">⏳ Fetching photo… 0%</div>';
+                api.preview_file(path).then(pollPreview).catch(e => {
+                    document.getElementById('previewStatus').textContent = '❌ ' + e;
+                });
+            } else {
+                body.innerHTML = '<div style="color: var(--text-secondary);">No in-app preview for this file type — use Download below.</div>';
+            }
+        }
+
+        async function playExternal() {
+            if (!previewPath) return;
+            showToast('▶ Opening in system player…');
+            try {
+                const r = await api.play_external(previewPath);
+                if (!r || !r.success) showToast('❌ ' + (r?.error || 'failed'));
+            } catch(e) { showToast('Player failed: ' + e); }
+        }
+
+        async function pollPreview() {
+            clearInterval(previewTimer);
+            previewTimer = setInterval(async () => {
+                try {
+                    const s = await api.preview_status(previewPath);
+                    if (!s || !s.success) return;
+                    if (s.state === 'ready' && s.file_url) {
+                        clearInterval(previewTimer);
+                        showPreviewContent(s.file_url);
+                    } else if (s.state === 'error') {
+                        clearInterval(previewTimer);
+                        document.getElementById('previewStatus').textContent = '❌ ' + (s.error || 'fetch failed');
+                    } else {
+                        const el = document.getElementById('previewStatus');
+                        if (el) el.textContent = `⏳ Fetching from TeraBox… ${s.pct || 0}%`;
+                    }
+                } catch(e) { /* keep polling */ }
+            }, 1500);
+        }
+
+        function showPreviewContent(url) {
+            const body = document.getElementById('previewBody');
+            if (IMG_RE.test(previewPath)) {
+                body.innerHTML = `<img src="${url}" style="max-width:100%; max-height:60vh; border-radius:8px;" alt="preview">`;
+            } else if (VID_RE.test(previewPath)) {
+                body.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%; max-height:60vh; border-radius:8px; background:#000;"></video>`;
+            } else {
+                body.innerHTML = `<div style="color: var(--text-secondary);">Ready — <a href="${url}" style="color:var(--primary);">open file</a> or download below.</div>`;
+            }
+        }
+
+        function closePreview() {
+            clearInterval(previewTimer);
+            document.getElementById('previewModal').style.display = 'none';
+            document.getElementById('previewBody').innerHTML =
+                '<div id="previewStatus" style="color: var(--text-secondary);">Preparing…</div>';
+            previewPath = null;
+        }
+
+        async function downloadCurrent() {
+            if (!previewPath) return;
+            const home = await api.select_folder_dialog().catch(() => null);
+            showToast('⬇ Downloading… watch the bar below');
+            const prog = document.getElementById('dlProgress');
+            const fill = document.getElementById('dlFill');
+            const text = document.getElementById('dlText');
+            prog.style.display = 'block';
+            try {
+                // Default to ~/Downloads if dialog unavailable
+                const dest = (home && typeof home === 'string') ? home : (await api.default_download_dir().catch(() => null)) || 'Downloads';
+                const r = await api.download_file(previewPath, dest);
+                if (!r || !r.success) return showToast('❌ ' + (r?.error || 'download failed'));
+                const timer = setInterval(async () => {
+                    const s = await api.download_status(previewPath, dest);
+                    if (s.state === 'ready') {
+                        clearInterval(timer);
+                        fill.style.width = '100%';
+                        text.textContent = '✅ Saved to ' + (s.dest || dest);
+                        showToast('✅ Downloaded');
+                    } else if (s.state === 'error') {
+                        clearInterval(timer);
+                        text.textContent = '❌ ' + (s.error || 'failed');
+                    } else {
+                        fill.style.width = (s.pct || 0) + '%';
+                        text.textContent = `⬇ Downloading… ${s.pct || 0}%`;
+                    }
+                }, 1500);
+            } catch(e) { showToast('Download failed: ' + e); }
+        }
+
+        // Upload uses native dialogs (real paths) via uploadFilesHere/uploadFolderHere.
+        // Drag & drop onto the zone uploads via dropped file paths where available.
+        function selectFiles() { uploadFilesHere(); }
+        async function handleFileSelect(input) {
+            if (!isLoggedIn) return showToast('Please login first');
+            if (!input.files.length) return;
+            showToast('⬆ Use Select Files / Select Folder buttons (browser drops hide real paths).');
+        }
+
+        // Watch
+        async function addWatchFolder() {
+            const path = document.getElementById('watchPath').value.trim();
+            if (!path) return showToast('Enter a valid path');
+            await api.add_watch(path);
+            showToast(`Now watching: ${path}`);
+            loadWatchList();
+        }
+
+        async function loadWatchList() {
+            const list = await api.get_watch_list();
+            const container = document.getElementById('watchList');
+            if (!list.length) { container.innerHTML = '<p style="color:var(--text-secondary);">No folders being watched</p>'; return; }
+            container.innerHTML = list.map(p => `<div style="padding:10px;background:var(--hover);border-radius:6px;margin-bottom:8px;display:flex;justify-content:space-between;border:1px solid var(--border);"><span>📂 ${p}</span><span style="color:var(--success);">Active</span></div>`).join('');
+        }
+
+        // Utils
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // Drag & Drop
+        const dz = document.getElementById('dropZone');
+        dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+        dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+        dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); handleFileSelect({files: e.dataTransfer.files}); });
+
+        // Browser Login Flow (Auto-Capture)
+        async function openBrowserLogin(mode) {
+            closeLogin();
+            if (!api) { showToast('⚠️ Backend not ready yet. Please wait a moment...'); return; }
+            try {
+                const res = await api.open_browser_login(mode || 'default');
+                if (res && res.success) {
+                    document.getElementById('captureStatus').textContent = 'Waiting for login...';
+                    document.getElementById('captureProgress').style.width = '0%';
+                    document.getElementById('captureBtn').disabled = false;
+                    document.getElementById('captureBtn').textContent = "✅ I'm Logged In - Capture Now";
+                    document.getElementById('browserLoginOverlay').style.display = 'flex';
+                    if (res.via === 'firefox-second') {
+                        showToast('Isolated Firefox opened — sign in with your OTHER account, then Capture.');
+                    } else if (res.via === 'firefox') {
+                        showToast('Firefox opened — sign in with Google if you like, then Capture.');
+                    } else if (res.via === 'system_browser') {
+                        showToast('Browser opened — log in there, then Capture.');
+                    }
+                } else {
+                    showToast('Failed to open browser: ' + (res?.error || 'unknown'));
+                }
+            } catch(e) { showToast('Error opening browser: ' + e); }
+        }
+
+        async function captureCookies() {
+            const btn = document.getElementById('captureBtn');
+            const status = document.getElementById('captureStatus');
+            const progress = document.getElementById('captureProgress');
+            btn.disabled = true;
+            btn.textContent = '⏳ Capturing...';
+            status.textContent = 'Reading cookies from login window...';
+            progress.style.width = '50%';
+
+            try {
+                const res = await api.capture_cookies();
+                if (res && res.success) {
+                    progress.style.width = '100%';
+                    status.textContent = '✅ Cookies captured successfully!';
+                    isLoggedIn = true;
+                    currentPath = '/';
+                    updateStatusUI();
+                    loadFiles();
+                    loadAccounts();
+                    showToast(res.account ? `✅ ${res.account} added & active!` : '✅ Login successful! Cookies captured automatically.');
+                    setTimeout(() => {
+                        document.getElementById('browserLoginOverlay').style.display = 'none';
+                    }, 1200);
+                } else {
+                    status.textContent = '❌ ' + (res?.error || 'Capture failed');
+                    btn.disabled = false;
+                    btn.textContent = "✅ I'm Logged In - Capture Now";
+                    progress.style.width = '0%';
+                    showToast('❌ ' + (res?.error || 'Cookie capture failed'));
+                }
+            } catch(e) {
+                status.textContent = '❌ Error: ' + e;
+                btn.disabled = false;
+                btn.textContent = "✅ I'm Logged In - Capture Now";
+                progress.style.width = '0%';
+                showToast('Capture error: ' + e);
+            }
+        }
+
+        function cancelBrowserLogin() {
+            document.getElementById('browserLoginOverlay').style.display = 'none';
+        }
+
+        // Firefox Cookie Import
+        async function importFirefoxCookies() {
+            closeLogin();
+            if (!api) { showToast('⚠️ Backend not ready yet. Please wait a moment...'); return; }
+            showToast('🦊 Searching Firefox for TeraBox cookies...');
+            try {
+                const res = await api.import_firefox_cookies();
+                if (res && res.success) {
+                    isLoggedIn = true;
+                    updateStatusUI();
+                    loadFiles();
+                    showToast('✅ Logged in using Firefox cookies!');
+                } else {
+                    showToast('❌ ' + (res?.error || 'Could not import Firefox cookies'));
+                }
+            } catch(e) {
+                showToast('Firefox import error: ' + e);
+            }
+        }
+
+        // Init is handled by initApi() above (pywebviewready + 2s fallback)
+    </script>
+</body>
+</html>
